@@ -1,0 +1,59 @@
+# .github/workflows/ci-cpu.yml
+# ─────────────────────────────────────────────────────────────
+# Runs on every PR and push to main.
+# Uses the MOCK runner (no real LLM needed) so it works
+# on standard GitHub-hosted runners with no GPU.
+# ─────────────────────────────────────────────────────────────
+
+name: CI (CPU / Mock Runner)
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Red-Team Suite (Mock)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check src/ tests/
+
+      - name: Unit tests (scoring engine, policy loader)
+        run: pytest tests/ -m "unit" --cov=src --cov-report=xml -v
+
+      - name: Run mock red-team suite
+        run: |
+          python scripts/run_suite.py \
+            --runner mock \
+            --policy policies/default.yaml \
+            --output reports/ci-run.html
+
+      - name: Upload HTML report
+        uses: actions/upload-artifact@v4
+        with:
+          name: redteam-report
+          path: reports/ci-run.html
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.xml

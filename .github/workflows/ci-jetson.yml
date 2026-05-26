@@ -1,0 +1,64 @@
+# .github/workflows/ci-jetson.yml
+# ─────────────────────────────────────────────────────────────
+# Full red-team suite on a Jetson self-hosted runner.
+# Triggered manually or on version tags (v*).
+# Requires: Jetson registered as GitHub self-hosted runner
+#           with label "jetson"
+# ─────────────────────────────────────────────────────────────
+
+name: CI (Jetson / Full Suite)
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Ollama model to test against"
+        required: false
+        default: "llama3"
+
+jobs:
+  redteam-jetson:
+    name: Full Red-Team Suite (Jetson)
+    runs-on: [self-hosted, jetson]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python venv
+        run: |
+          python3 -m venv .venv
+          source .venv/bin/activate
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Verify Ollama is running
+        run: curl -s http://localhost:11434/api/tags | python3 -c "import sys,json; print(json.load(sys.stdin))"
+
+      - name: Pull model if needed
+        run: ollama pull ${{ github.event.inputs.model || 'llama3' }}
+
+      - name: Run full red-team suite
+        run: |
+          source .venv/bin/activate
+          python scripts/run_suite.py \
+            --runner ollama \
+            --model ${{ github.event.inputs.model || 'llama3' }} \
+            --policy policies/default.yaml \
+            --output reports/jetson-run.html \
+            --compare-baseline reports/baseline/latest.json
+
+      - name: Export new baseline (on tag only)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          source .venv/bin/activate
+          python scripts/export_baseline.py --tag ${{ github.ref_name }}
+
+      - name: Upload Jetson report
+        uses: actions/upload-artifact@v4
+        with:
+          name: jetson-redteam-report-${{ github.ref_name }}
+          path: reports/jetson-run.html
