@@ -1,4 +1,4 @@
-# 🔴 RedTeam-CI — Prompt Guardrails & Red-Team CI Harness
+# RedTeam-CI — Prompt Guardrails & Red-Team CI Harness
 
 > Automated adversarial testing for local LLM assistants, built for edge hardware (NVIDIA Jetson Orin Nano).
 
